@@ -200,7 +200,7 @@ namespace SQLApi
 
         public SQLServer InitialiseServerConnecton()
         {
-            server = new SQLServer("Suletta", "Suletta@_10521", "192.168.0.61", "ChinatsuServicesWebsite");
+            server = new SQLServer("", "", "", "");
             return server;
         }
     }
