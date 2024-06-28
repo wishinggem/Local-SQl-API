@@ -11,3 +11,7 @@ To initialise
 
 To interface with api
 - implement the code in the Backend.cs file in Source into the backend scripting of the web app
+
+Note
+- the api can currently only handle single result queries
+- an api usually is recomended over this sort of aproach however if an api is not necceseraly required this will work in a very similar way
