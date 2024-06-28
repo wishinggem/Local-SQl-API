@@ -11,6 +11,7 @@ To initialise
 
 To interface with api
 - implement the code in the Backend.cs file in Source into the backend scripting of the web app
+- or include the dll required file for the dll file in the dll directory and to call use name space Chisato.Shell anmd call Shell.RunCommandSQLAPI(string query) and the result will be returned if any result
 
 Note
 - the api can currently only handle single result queries
