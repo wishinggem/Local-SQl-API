@@ -8,41 +8,41 @@ using Chisato.File;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace SQLApi
 {
     internal class Program
     {
-        private static string jsonInputFilePath = "C:\\SQLAPI\\JsonInput.json";
+        private static string credsFilePath = "C:\\SQLAPI\\Creds.json";
+        private static string queryFilePath = "C:\\SQLAPI\\Query.json";
+        private static string parentDir = "C:\\SQLAPI";
 
         static void Main(string[] args) //cli args are passed in format "QueryType", '{username: \"user\", password: \"password\", .....}'
         {
-            string type = args[0];
-
-            QueryType queryType = QueryType.Read;
+            string password = "";
+            string username = "";
+            string dataSource = "";
+            string database = "";
+            string query = "";
+            if (args.Length >= 1)
+            {
+                query = args[0];
+            }
             bool init = false;
 
-            switch (type)
+            switch (query)
             {
-                case "Create":
-                    queryType = QueryType.Create;
-                    break;
-
-                case "Update":
-                    queryType = QueryType.Update;
-                    break;
-
-                case "Delete":
-                    queryType = QueryType.Delete;
-                    break;
-
-                case "Read":
-                    queryType = QueryType.Read;
-                    break;
-
                 case "Initialise":
                     init = true;
-                    InitAPI();
+                    if (args.Length > 1)
+                    {
+                        dataSource = args[1];
+                        database = args[2];
+                        username = args[3];
+                        password = args[4];
+                    }
+                    InitAPI(dataSource, database, username, password);
                     break;
 
                 default:
@@ -57,151 +57,60 @@ namespace SQLApi
 
             if (!init)
             {
-                QueryAuthentication auth = new QueryAuthentication();
                 bool unauthenticated = false;
-                UserCreate userC = null;
-                UserUpdate userU = null;
-                UserDelete userD = null;
-                LoginUser login = null;
 
-                switch (queryType)
-                {
-                    case QueryType.Create:
-                        userC = JsonHandler.DeserializeJsonFile<UserCreate>(jsonInputFilePath);
-
-                        if (auth.IsAuthenticated(new List<string> { userC.username, userC.password }))
-                        {
-                            Console.WriteLine("Bad Perameter");
-                            unauthenticated = true;
-                        }
-
-                        break;
-                    case QueryType.Update:
-                        userU = JsonHandler.DeserializeJsonFile<UserUpdate>(jsonInputFilePath);
-
-                        if (auth.IsAuthenticated(new List<string> { userU.username, userU.newUsername, userU.newPassword }))
-                        {
-                            Console.WriteLine("Bad Perameter");
-                            unauthenticated = true;
-                        }
-
-                        break;
-                    case QueryType.Delete:
-                        userD = JsonHandler.DeserializeJsonFile<UserDelete>(jsonInputFilePath);
-
-                        if (auth.IsAuthenticated(new List<string> { userD.username }))
-                        {
-                            Console.WriteLine("Bad Perameter");
-                            unauthenticated = true;
-                        }
-
-                        break;
-                    case QueryType.Read:
-                        login = JsonHandler.DeserializeJsonFile<LoginUser>(jsonInputFilePath);
-
-                        if (auth.IsAuthenticated(new List<string> { login.username, login.password }))
-                        {
-                            Console.WriteLine("Bad Perameter");
-                            unauthenticated = true;
-                        }
-
-                        break;
-                    default:
-                        break;
-                }
+                
 
                 if (!unauthenticated)
                 {
                     API api = new API();
-                    SQLServer apiServer = api.InitialiseServerConnecton();
-                    string query = "";
-                    PasswordHandler crypt = new PasswordHandler();
+                    SQLServer apiServer = api.InitialiseServerConnecton(credsFilePath);
 
-                    switch (queryType)
-                    {
-                        case QueryType.Create:
+                    string queryLoad = JsonHandler.DeserializeJsonFile<Query>(queryFilePath).query;
 
-                            string salt = "";
-                            string hash = crypt.Hash(userC.password, out salt);
-
-                            apiServer.RunQuerySingle($"INSERT INTO Users VALUES ({Guid.NewGuid().ToString()}, '{userC.username}', '{"Unused"}', '{hash}', {salt})");
-
-                            break;
-                        case QueryType.Update:
-
-                            string newSalt = "";
-                            string newHash = crypt.Hash(userU.newPassword, out newSalt);
-
-                            string userID = apiServer.RunQuerySingle($"SELECT userID FROM Users WHERE username = '{userU.username}'");
-
-                            apiServer.RunQuerySingle($"UPDATE Users SET username = '{userU.newUsername}', email = 'Unused', password = '{newHash}', salt = '{newSalt}' WHERE userID = {userID}");
-
-                            break;
-                        case QueryType.Delete:
-
-                            apiServer.RunQuerySingle($"DELETE FROM Users WHERE username = '{userD.username}'");
-
-                            break;
-                        case QueryType.Read:
-
-                            string existingSalt = apiServer.RunQuerySingle($"SELECT salt FROM Users WHERE username = '{login.username}'");
-                            string existingHash = apiServer.RunQuerySingle($"SELECT password FROM Users WHERE username = '{login.username}'");
-
-                            bool match = crypt.CompareHash(login.password, existingHash, existingSalt);
-
-                            if (match)
-                            {
-                                Console.WriteLine("authenticated");
-                            }
-
-                            break;
-                        default:
-                            break;
-                    }
+                    string response = apiServer.RunQuerySingle(queryLoad);
+                    Query res = new Query();
+                    res.query = response;
+                    JsonHandler.SerializeJsonFile<Query>(queryFilePath, res);
                 }
             }
         }
             
 
-        private static void InitAPI()
+        private static void InitAPI(string dataSource, string database, string username, string password)
         {
-            Directory.CreateDirectory("C:\\SQLAPI");
-            File.Create(jsonInputFilePath);
+            ServerCreds creds = new ServerCreds();
+            creds.dataSource = dataSource;
+            creds.database = database;
+            creds.username = username;
+            creds.password = password;
+            Directory.CreateDirectory(parentDir);
+            File.Create(queryFilePath);
+            JsonHandler.SerializeJsonFile(credsFilePath, creds);
         }
     }
 
-    public class LoginUser
+    [Serializable]
+    public class Query
     {
+        public string query;
+    }
+
+    [Serializable]
+    public class ServerCreds
+    {
+        public string dataSource;
+        public string database;
         public string username;
         public string password;
-    }
-
-    public class UserCreate
-    {
-        public string username;
-        public string password;
-    }
-
-    public class UserDelete
-    {
-        public string username;
-    }
-
-    public class UserUpdate
-    {
-        public string username;
-        public string newUsername;
-        public string newPassword;
     }
 
     public class API
     {
-        private SQLServer server;
-
-        public SQLServer InitialiseServerConnecton()
+        public SQLServer InitialiseServerConnecton(string credsPath)
         {
-            server = new SQLServer("", "", "", "");
-            return server;
+            ServerCreds creds = JsonHandler.DeserializeJsonFile<ServerCreds>(credsPath);
+            return new SQLServer(creds.username, creds.password, creds.dataSource, creds.database);
         }
     }
 
